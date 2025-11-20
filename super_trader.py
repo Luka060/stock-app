@@ -7,12 +7,12 @@ from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 
 # --- 頁面設定 ---
-st.set_page_config(page_title="Alpha Sniper Platinum+ (TW/JP/US)", layout="wide")
+st.set_page_config(page_title="Alpha Sniper Platinum+", layout="wide")
 st.title("🚀 Alpha Sniper Platinum+ - 台美日全球操盤系統")
-st.markdown("### 「K線看力道，均線看趨勢，RSI看位階。」")
+st.markdown("### 「看不見的風險最可怕，看得見的數據是武器。」")
 
 # ==========================================
-# 側邊欄：參數
+# 側邊欄：參數與說明書
 # ==========================================
 st.sidebar.header("⚙️ 戰情室參數")
 
@@ -22,25 +22,53 @@ default_family = "ZETA, NBIS"
 family_input = st.sidebar.text_area("家人監控清單", default_family)
 family_list = [x.strip().upper() for x in family_input.split(',')]
 
-# 2. ETF 設定
+# 2. ETF 設定 (已移除 0P0000XS79.F)
 st.sidebar.subheader("🛡️ ETF 戰略指揮部")
 default_etf = "VOO, QQQ, 0050.TW, 2563.T, 2558.T"
 etf_input = st.sidebar.text_area("ETF 清單", default_etf)
 etf_list = [x.strip().upper() for x in etf_input.split(',')]
 
-# 3. 觀察名單
+# 3. 觀察名單 (COIN -> JPM)
 st.sidebar.subheader("⚡ 市場觀察名單")
 default_watch = "NVDA, TSLA, AAPL, MSFT, PLTR, TSM, JPM"
 watch_input = st.sidebar.text_area("觀察名單", default_watch)
 watchlist = [x.strip().upper() for x in watch_input.split(',')]
 
 st.sidebar.markdown("---")
-with st.sidebar.expander("📖 操盤手說明書", expanded=True):
+
+# --- 說明書 ---
+with st.sidebar.expander("📖 操盤手教戰手冊 (必讀)", expanded=True):
+    st.markdown("### 1. RSI (相對強弱指標)")
+    st.caption("判斷股價是否過熱或超賣")
     st.markdown("""
-    - **0050.TW:** 元大台灣50 (台股紅K)
-    - **2558.T:** 日股 S&P500 (日股紅K)
-    - **RSI > 75:** ⚠️ 過熱 (獲利)
-    - **RSI < 30:** 💎 超賣 (進場)
+    | 數值 | 狀態 | 你的動作 |
+    | :--- | :--- | :--- |
+    | **> 85** | 🔥 **極度危險** | **清倉/快跑** |
+    | **> 75** | ⚠️ **過熱警戒** | **分批獲利** |
+    | **50-60**| 🟢 **趨勢健康** | **續抱** |
+    | **< 30** | 💎 **黃金超賣** | **分批進場** |
+    """)
+    
+    st.markdown("---")
+    
+    st.markdown("### 2. 機構籌碼 (heldPercent)")
+    st.caption("華爾街大戶持股比例")
+    st.markdown("""
+    | 比例 | 意義 |
+    | :--- | :--- |
+    | **> 70%** | 🛡️ **大戶鎖碼** (穩) |
+    | **40-70%**| 📈 **標準水位** (正常) |
+    | **< 30%** | ⚠️ **散戶盤** (亂) |
+    """)
+
+    st.markdown("---")
+    
+    st.markdown("### 3. 關鍵代碼與價位")
+    st.markdown("""
+    - **0050.TW:** 元大台灣50 (台幣)
+    - **2558.T:** eMAXIS 最佳替代品 (日圓)
+    - **💰 黃金價 (200MA):** 長線價值區
+    - **💎 恐慌坑 (BB Low):** 極端便宜區
     """)
 
 # ==========================================
@@ -62,19 +90,18 @@ def analyze_asset(ticker, asset_type="stock"):
         if ".T" in ticker or ".F" in ticker: currency_symbol = "¥"
         elif ".TW" in ticker or ".TWO" in ticker: currency_symbol = "NT$"
             
-        # --- 修正後的「基金」判斷邏輯 ---
-        # 預設先檢查過去 10 天，如果這 10 天每一天的 High 都等於 Low，才當作基金
+        # --- 基金判斷邏輯 ---
         recent_df = df.tail(10)
         is_fund_stat = (recent_df['High'] == recent_df['Low']).all()
         
-        # 強制白名單：這些絕對是 ETF，必須顯示 K 棒
-        force_etf_list = ["0050", "2563", "2558", "VOO", "QQQ", "SPY", "IVV"]
+        # 強制白名單 (ETF 必須顯示 K 棒)
+        force_etf_list = ["0050", "2563", "2558", "VOO", "QQQ", "SPY", "IVV", "SOXL", "TQQQ"]
         is_known_etf = any(x in ticker for x in force_etf_list)
         
         if is_known_etf:
-            is_fund = False  # 強制顯示 K 棒
+            is_fund = False
         else:
-            is_fund = is_fund_stat # 否則依照數據判斷 (例如 eMAXIS Slim)
+            is_fund = is_fund_stat
 
         # 名稱優化
         name = ticker
@@ -171,16 +198,16 @@ def analyze_asset(ticker, asset_type="stock"):
     except Exception as e: 
         return {"Error": str(e)}
 
-# --- 繪圖函式 (支援紅綠K棒) ---
+# --- 繪圖函式 ---
 def draw_chart(item, height=300):
     df = item['Data'].tail(150)
     fig = go.Figure()
     
     if item['IsFund']:
-        # 基金畫線
+        # 基金用折線
         fig.add_trace(go.Scatter(x=df.index, y=df['Close'], line=dict(color='white', width=2), name='Price'))
     else:
-        # 股票/ETF 畫紅綠 K 線
+        # 股票/ETF 用 K 線 (紅漲綠跌)
         fig.add_trace(go.Candlestick(
             x=df.index, 
             open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
@@ -234,7 +261,7 @@ if st.button('🚀 啟動白金全境掃描'):
                 st.divider()
                 st.metric("RSI 強弱", item['RSI'])
                 if item['IsFund']:
-                    st.caption("⚠️ 此為基金，以折線圖顯示。")
+                    st.caption("⚠️ 此為基金 (折線圖)。")
             with c2:
                 st.plotly_chart(draw_chart(item), use_container_width=True)
 
